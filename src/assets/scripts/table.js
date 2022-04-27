@@ -1,7 +1,9 @@
-import {ref, reactive} from "vue";
+const _classes = [];
+let _tables = {};
 
-let _tables = reactive({});
-let _classes = reactive([]);
+export function setTables(value) {
+    _tables = value;
+}
 
 export function pluralize(str) {
     if(str.endsWith("s"))
@@ -37,7 +39,7 @@ export class Record {
         this._id = cls.nextId;
         records.push(this);
 
-        return this;
+        return records[records.length - 1];
     }
 
     update(properties={}) {
@@ -68,7 +70,7 @@ export class Record {
             if(!(e instanceof Array)) e = [e];
             let props = {};
             for(let prop of e) props[prop] = this[prop];
-            let first = cls.getFirst({properties: props});
+            let first = cls.getFirst(props);
             return first != null;
         });
         return vals.some((r) => r);
@@ -131,30 +133,45 @@ export class Record {
 
     static get last() {return this.getFirst();}
 
-    static getFirst({condition="and", sort=null, reverse=false, skip=null, limit=null, properties={}}={}) {
-        let get = this.get({condition, sort, reverse, skip, limit, properties});
+    static getFirst(kwargs={}) {
+        let get = this.get(kwargs);
         return get.length == 0 ? null : get[0];
     }
 
-    static getLast({condition="and", sort=null, reverse=false, skip=null, limit=null, properties={}}={}) {
-        let get = this.get({condition, sort, reverse, skip, limit, properties});
+    static getLast(kwargs={}) {
+        let get = this.get(kwargs);
         return get.length == 0 ? null : get[get.length - 1];
     }
 
-    static get({condition="and", sort=null, reverse=false, skip=null, limit=null, properties={}}={}) {
+    static get(kwargs={}) {
+        function popProp(key) {
+            let val = null;
+            if(key in kwargs) {
+                val = kwargs[key];
+                delete kwargs[key];
+            }
+            return val;
+        }
+
+        let condition = popProp("_condition") || "and";
+        let sort = popProp("_sort");
+        let reverse = popProp("_reverse") || false;
+        let skip = popProp("_skip");
+        let limit = popProp("_limit");
+
         let records = this._get;
-        let keys = Object.getOwnPropertyNames(properties);
+        let keys = Object.getOwnPropertyNames(kwargs);
         let filter = null;
         let cloned = false;
         if(keys.length != 0) {
             if(!(condition instanceof Function)) {
-                function getProp(key, props=properties) {
+                function getProp(key, props=kwargs) {
                     let val = key in props ? props[key] : null;
                     if(val instanceof Function) val = val();
 
                     return val;
                 }
-                filter = (record, i, a, cond=condition, props=properties) => {
+                filter = (record, i, a, cond=condition, props=kwargs) => {
                     let keys = Object.getOwnPropertyNames(props);
                     let res = keys.map((v) => {
                         if(v in record) {
@@ -220,24 +237,24 @@ export class Record {
         return records;
     }
 
-    static relate(tcls, type=Rel.ONE, name=null, id_name=null, target_id_name=null) {
+    static relate(tcls, type=Rel.ONE, name=null, idName=null, targetIdName=null) {
         let fname = this.name.toLowerCase();
         let tname = tcls.name.toLowerCase();
-        let id = id_name || `${fname}_id`
+        let id = idName || `${fname}Id`
         
         if(type == Rel.MANY) {
             name = name || pl(tname);
             this._relationships[name] = function get(sort=null, reverse=false, _tcls=tcls) {
-                return _tcls.get({sort: sort, reverse: reverse, properties: {[id]: this.id}});
+                return _tcls.get({_sort: sort, _reverse: reverse, ...{[id]: this.id}});
             }
         } else if(type == Rel.ONE) {
             name = name || tname;
-            let tid = target_id_name || `${name}_id`;
+            let tid = targetIdName || `${name}Id`;
             let pname = `_${tid}`;
             this._relationships[name] = {
                 get(_tcls=tcls, _tid=tid) {
                     if(_tid in this) {
-                        let first = _tcls.getFirst({properties: {id: this[_tid]}});
+                        let first = _tcls.getFirst({id: this[_tid]});
                         return first;
                     }
     
