@@ -3,11 +3,17 @@ import {ref, reactive, onMounted, computed} from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import HelloWorld from "@/components/HelloWorld.vue";
 
+import {setTables} from "@/assets/scripts/table.js";
 import * as ec from "@/assets/scripts/ecommerce.js";
 
-const user = reactive(new ec.User("Amolat", "Nommel Isanar", "Lavapie").create());
+setTables(reactive({}));
 
+ec.User.get().length = 0;
 ec.Product.get().length = 0;
+ec.Purchase.get().length = 0;
+
+const user = new ec.User("Amolat", "Nommel Isanar", "Lavapie").create();
+
 for(let product of [
   "Apples", "Mango", "Guava", "Orange", "Strawberry", "Grape"
 ]) {
@@ -15,7 +21,7 @@ for(let product of [
 }
 
 const products = computed(() => {
-  return ec.Product.get({limit: 5, skip: 0});
+  return ec.Product.get({_limit: 5, _skip: 0});
 });
 
 const purchases = computed(() => {
@@ -33,12 +39,9 @@ function addToCart(ev) {
   let pe = $(ev.target).closest(".product");
   let id = parseInt(pe.data("product"));
   let quant = parseInt(pe.find("input").val()) || 1;
-  let pro = ec.Product.getFirst({
-    properties: {id}
-  });
-  let pur = ec.Purchase.getFirst({properties: {
-    user, product: pro
-  }});
+  let pro = ec.Product.getFirst({id});
+  let pur = ec.Purchase.getFirst({user, product: pro});
+
   if(pur && pur.existing) {
     pur.quantity += quant;
   } else {
@@ -50,7 +53,7 @@ function addToCart(ev) {
 function removeToCart(ev) {
   let pu = $(ev.target).closest(".purchase");
   let id = parseInt(pu.data("purchase"));
-  let pur = ec.Purchase.getFirst({properties: {id}});
+  let pur = ec.Purchase.getFirst({id});
   if(pur) pur.delete();
 }
 </script>
