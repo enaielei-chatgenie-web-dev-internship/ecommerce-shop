@@ -1,10 +1,79 @@
 <script setup>
+import {ref, reactive, onMounted, computed} from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import HelloWorld from "@/components/HelloWorld.vue";
+
+import * as ec from "@/assets/scripts/ecommerce.js";
+
+const user = reactive(new ec.User("Amolat", "Nommel Isanar", "Lavapie").create());
+
+ec.Product.get().length = 0;
+for(let product of [
+  "Apples", "Mango", "Guava", "Orange", "Strawberry", "Grape"
+]) {
+  new ec.Product(product, "", Math.random() * 25.25).create();
+}
+
+const products = computed(() => {
+  return ec.Product.get({limit: 5, skip: 0});
+});
+
+const purchases = computed(() => {
+  return user.purchases();
+});
+
+const cartPrice = computed(() => {
+  let ps = purchases.value.map((p) => {
+    return p.price;
+  });
+  return parseFloat(ps.reduce((x, y) => x + y, 0).toFixed(2));
+})
+
+function addToCart(ev) {
+  let pe = $(ev.target).closest(".product");
+  let id = parseInt(pe.data("product"));
+  let quant = parseInt(pe.find("input").val()) || 1;
+  let pro = ec.Product.getFirst({
+    properties: {id}
+  });
+  let pur = ec.Purchase.getFirst({properties: {
+    user, product: pro
+  }});
+  if(pur && pur.existing) {
+    pur.quantity += quant;
+  } else {
+    pur = new ec.Purchase(user, pro, quant);
+    pur.create();
+  }
+}
+
+function removeToCart(ev) {
+  let pu = $(ev.target).closest(".purchase");
+  let id = parseInt(pu.data("purchase"));
+  let pur = ec.Purchase.getFirst({properties: {id}});
+  if(pur) pur.delete();
+}
 </script>
 
 <template>
-  <header>
+  <div>
+    <h1>Products</h1>
+    <i>Count: {{ec.Product.get().length}}</i>
+    <div v-for="product in products" :style="{color: 'red !important;'}" class="product" :id="`product-${product.id}`" :key="product.id" :data-product="product.id">
+      {{product.name}} - &#8369;{{product.price}} x <input type="number" min="1" value="1"> <button type="button" @click="addToCart">Add to Cart</button>
+    </div>
+  </div>
+
+  <br>
+
+  <div>
+    <h1>Cart</h1>
+    <i>Count: {{purchases.length}}</i>, <i>Price: &#8369;{{cartPrice}}</i>
+    <div v-for="purchase in purchases" :style="{color: 'red !important;'}" class="purchase" :id="`purchase-${purchase.id}`" :key="purchase.id" :data-purchase="purchase.id">
+      {{purchase.product.name}} - &#8369;{{purchase.product.price}} x <input type="number" min="1" v-model="purchase.quantity"> = &#8369;{{purchase.price}} <button @click="removeToCart">Remove from Cart</button>
+    </div>
+  </div>
+  <!-- <header>
     <img
       alt="Vue logo"
       class="logo"
@@ -23,7 +92,7 @@ import HelloWorld from "@/components/HelloWorld.vue";
     </div>
   </header>
 
-  <RouterView />
+  <RouterView /> -->
 </template>
 
 <style>
